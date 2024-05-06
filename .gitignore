@@ -1,0 +1,14 @@
+venv/
+
+.vscode/
+.idea/
+
+*.pyc
+__pycache__/
+
+static/
+media/
+
+DrfAPI/migrations/
+
+DRFProject/settings.py
