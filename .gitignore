@@ -12,3 +12,5 @@ media/
 DrfAPI/migrations/
 
 DRFProject/settings.py
+
+logs/
