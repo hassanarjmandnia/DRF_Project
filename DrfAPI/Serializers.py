@@ -1,5 +1,6 @@
-from django.core.validators import RegexValidator
+from django.core.validators import RegexValidator   
 from rest_framework import serializers
+from .utils import get_default_role
 from .models import CustomUser
 
 
@@ -31,6 +32,12 @@ class UserSerializer(serializers.ModelSerializer):
         return value
 
     def create(self, validated_data):
+        default_role = get_default_role()
+        if default_role is None:
+            raise serializers.ValidationError(
+                "Sorry, we are unable to process your registration request at this time. Please try again later."
+            )
+        validated_data["role"] = default_role
         password = validated_data.pop("password")
         user = CustomUser.objects.create_user(password=password, **validated_data)
         return user
