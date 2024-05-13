@@ -1,6 +1,8 @@
-from django.core.validators import RegexValidator   
+from django.core.exceptions import ValidationError
+from django.core.validators import RegexValidator
 from rest_framework import serializers
 from .utils import get_default_role
+from django.conf import settings
 from .models import CustomUser
 
 
@@ -41,3 +43,25 @@ class UserSerializer(serializers.ModelSerializer):
         password = validated_data.pop("password")
         user = CustomUser.objects.create_user(password=password, **validated_data)
         return user
+
+
+class FileUploadSerializer(serializers.Serializer):
+    files = serializers.ListField(child=serializers.FileField(), max_length=5)
+
+    def validate_files(self, value):
+        total_size = sum(file.size for file in value)
+        max_size = settings.MAX_FILE_UPLOAD_SIZE
+
+        if total_size > max_size:
+            raise serializers.ValidationError(
+                f"Total file size exceeds {max_size} bytes"
+            )
+
+        allowed_formats = settings.ALLOWED_FILE_UPLOAD_FORMATS
+
+        for file in value:
+            ext = file.name.lower().split(".")[-1]
+            if not ext in allowed_formats:
+                raise ValidationError(f"File format {file.name} not supported")
+
+        return value

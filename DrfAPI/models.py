@@ -4,8 +4,6 @@ from django.db import models
 
 class CustomUser(AbstractUser):
 
-
-
     first_name = models.CharField(
         max_length=30,
         blank=False,
