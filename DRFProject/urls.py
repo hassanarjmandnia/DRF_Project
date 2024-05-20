@@ -2,8 +2,8 @@ from DrfAPI.views import (
     UserRegistrationView,
     MyProtectedView,
     UserLogoutView,
-    FileUploadView,
     UserLoginView,
+    ProductCreateView,
 )
 from django.urls import path
 
@@ -15,7 +15,7 @@ urlpatterns = [
     path("login/", UserLoginView.as_view(), name="user-login"),
     path("logout/", UserLogoutView.as_view(), name="user-logout"),
     path("reg/", MyProtectedView.as_view(), name="user-reg"),
-    path("upload/", FileUploadView.as_view(), name="file-upload"),
+    path("products/create/", ProductCreateView.as_view(), name="product-create"),
 ]
 if settings.DEBUG:
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

@@ -1,4 +1,4 @@
-from .Serializers import UserSerializer, FileUploadSerializer
+from .serializers import UserSerializer, ProductSerializer, ProductFileSerializer
 from django.contrib.auth import login, authenticate, logout
 from django.core.files.storage import FileSystemStorage
 from rest_framework.permissions import IsAuthenticated
@@ -63,21 +63,25 @@ class MyProtectedView(APIView):
         return Response({"message": f"Hello, {request.user.username}!"})
 
 
-class FileUploadView(APIView):
+class ProductCreateView(APIView):
     permission_classes = [IsAuthenticated]
 
-    def post(self, request, format=None):
-        serializer = FileUploadSerializer(data=request.data)
-        if serializer.is_valid():
-            uploaded_files = serializer.validated_data["files"]
-            upload_directory = settings.MEDIA_ROOT
-            fs = FileSystemStorage(location=upload_directory)
-            file_urls = []
-            for uploaded_file in uploaded_files:
-                saved_file = fs.save(uploaded_file.name, uploaded_file)
-                file_url = fs.url(saved_file)
-                file_urls.append(request.build_absolute_uri(file_url))
+    def post(self, request):
+        files_data = [{"file": file} for file in request.FILES.getlist("files")]
+        product_serializer = ProductSerializer(
+            data=request.data, context={"request": request}
+        )
+        product_file_serializer = ProductFileSerializer(data=files_data, many=True)
+        if product_serializer.is_valid():
+            if product_file_serializer.is_valid():
+                product = product_serializer.save(user=request.user)
+                product_file_serializer.save(product=product)
+                return Response(product_serializer.data, status=status.HTTP_200_OK)
+            else:
+                return Response(
+                    product_file_serializer.errors, status=status.HTTP_400_BAD_REQUEST
+                )
+        else:
             return Response(
-                {"download_urls": file_urls}, status=status.HTTP_201_CREATED
+                product_serializer.errors, status=status.HTTP_400_BAD_REQUEST
             )
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)

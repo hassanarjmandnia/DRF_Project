@@ -1,9 +1,10 @@
+from .models import CustomUser, Product, ProductFile
 from django.core.exceptions import ValidationError
 from django.core.validators import RegexValidator
 from rest_framework import serializers
 from .utils import get_default_role
 from django.conf import settings
-from .models import CustomUser
+import re
 
 
 class UserSerializer(serializers.ModelSerializer):
@@ -45,23 +46,65 @@ class UserSerializer(serializers.ModelSerializer):
         return user
 
 
-class FileUploadSerializer(serializers.Serializer):
-    files = serializers.ListField(child=serializers.FileField(), max_length=5)
+class ProductFileSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ProductFile
+        fields = ["id", "file"]
 
-    def validate_files(self, value):
-        total_size = sum(file.size for file in value)
-        max_size = settings.MAX_FILE_UPLOAD_SIZE
+    def get_file_url(self, obj):
+        return obj.file.url
 
-        if total_size > max_size:
+
+class ProductSerializer(serializers.ModelSerializer):
+
+    class Meta:
+        model = Product
+        fields = ["id", "title", "description", "price", "user_id"]
+
+    def validate_title(self, value):
+        if not value.strip():
+            raise serializers.ValidationError("Title cannot be blank.")
+        if not re.match(r"^[a-zA-Z0-9\s]+$", value):
+            raise serializers.ValidationError("Title must be alphanumeric.")
+        if len(value) < 10:
             raise serializers.ValidationError(
-                f"Total file size exceeds {max_size} bytes"
+                "Title must be at least 10 characters long."
+            )
+        return value
+
+    def validate_description(self, value):
+        if not value.strip():
+            raise serializers.ValidationError("Description cannot be blank.")
+        if len(value) < 10:
+            raise serializers.ValidationError(
+                "Description must be at least 10 characters long."
+            )
+        return value
+
+    def validate_price(self, value):
+        if value is None or value <= 0:
+            raise serializers.ValidationError("Price must be greater than zero.")
+        return value
+
+    def validate(self, data):
+        request = self.context.get("request")
+        files = request.FILES.getlist("files") if request else []
+        if not (1 <= len(files) <= 5):
+            raise serializers.ValidationError(
+                "Number of files must be between 1 and 5.."
+            )
+        total_size = 0
+        for file in files:
+            if not any(
+                file.name.endswith(ext) for ext in settings.ALLOWED_FILE_UPLOAD_FORMATS
+            ):
+                raise serializers.ValidationError(
+                    f"Invalid file type. Allowed types are: {', '.join(settings.ALLOWED_FILE_UPLOAD_FORMATS)}"
+                )
+            total_size += file.size
+        if total_size > settings.MAX_FILE_UPLOAD_SIZE:
+            raise serializers.ValidationError(
+                f"Total file size must be under {settings.MAX_FILE_UPLOAD_SIZE / (1024 * 1024)} MB"
             )
 
-        allowed_formats = settings.ALLOWED_FILE_UPLOAD_FORMATS
-
-        for file in value:
-            ext = file.name.lower().split(".")[-1]
-            if not ext in allowed_formats:
-                raise ValidationError(f"File format {file.name} not supported")
-
-        return value
+        return data
