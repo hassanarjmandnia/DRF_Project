@@ -1,6 +1,5 @@
 from .serializers import UserSerializer, ProductSerializer, ProductFileSerializer
 from django.contrib.auth import login, authenticate, logout
-from django.core.files.storage import FileSystemStorage
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -63,25 +62,25 @@ class MyProtectedView(APIView):
         return Response({"message": f"Hello, {request.user.username}!"})
 
 
-class ProductCreateView(APIView):
+class ProductView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
         files_data = [{"file": file} for file in request.FILES.getlist("files")]
-        product_serializer = ProductSerializer(
-            data=request.data, context={"request": request}
-        )
+        product_serializer = ProductSerializer(data=request.data)
         product_file_serializer = ProductFileSerializer(data=files_data, many=True)
         if product_serializer.is_valid():
             if product_file_serializer.is_valid():
                 product = product_serializer.save(user=request.user)
                 product_file_serializer.save(product=product)
-                return Response(product_serializer.data, status=status.HTTP_200_OK)
+                file_urls = [
+                    file_data["file_url"]
+                    for file_data in product_serializer.data["file_details"]
+                ]
+                response_data = product_serializer.data
+                response_data["file_details"] = file_urls
+                return Response(response_data, status=status.HTTP_200_OK)
             else:
                 return Response(
                     product_file_serializer.errors, status=status.HTTP_400_BAD_REQUEST
                 )
-        else:
-            return Response(
-                product_serializer.errors, status=status.HTTP_400_BAD_REQUEST
-            )

@@ -1,5 +1,4 @@
 from .models import CustomUser, Product, ProductFile
-from django.core.exceptions import ValidationError
 from django.core.validators import RegexValidator
 from rest_framework import serializers
 from .utils import get_default_role
@@ -47,19 +46,37 @@ class UserSerializer(serializers.ModelSerializer):
 
 
 class ProductFileSerializer(serializers.ModelSerializer):
+    file_url = serializers.SerializerMethodField()
+
     class Meta:
         model = ProductFile
-        fields = ["id", "file"]
+        fields = ["id", "file", "file_url"]
 
     def get_file_url(self, obj):
-        return obj.file.url
+        request = self.context.get("request")
+        if obj.file:
+            return request.build_absolute_uri(obj.file.url)
+        return None
 
 
 class ProductSerializer(serializers.ModelSerializer):
 
+    files = serializers.ListField(
+        child=serializers.FileField(), write_only=True, allow_empty=False
+    )
+    file_details = ProductFileSerializer(source="files", many=True, read_only=True)
+
     class Meta:
         model = Product
-        fields = ["id", "title", "description", "price", "user_id"]
+        fields = [
+            "id",
+            "title",
+            "description",
+            "price",
+            "files",
+            "file_details",
+            "user_id",
+        ]
 
     def validate_title(self, value):
         if not value.strip():
@@ -86,12 +103,10 @@ class ProductSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("Price must be greater than zero.")
         return value
 
-    def validate(self, data):
-        request = self.context.get("request")
-        files = request.FILES.getlist("files") if request else []
+    def validate_files(self, files):
         if not (1 <= len(files) <= 5):
             raise serializers.ValidationError(
-                "Number of files must be between 1 and 5.."
+                "Number of files must be between 1 and 5."
             )
         total_size = 0
         for file in files:
@@ -106,5 +121,9 @@ class ProductSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError(
                 f"Total file size must be under {settings.MAX_FILE_UPLOAD_SIZE / (1024 * 1024)} MB"
             )
+        return files
 
-        return data
+    def create(self, validated_data):
+        files = validated_data.pop("files", [])
+        product = Product.objects.create(**validated_data)
+        return product
