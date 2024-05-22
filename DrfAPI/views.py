@@ -1,8 +1,10 @@
 from .serializers import UserSerializer, ProductSerializer, ProductFileSerializer
 from django.contrib.auth import login, authenticate, logout
 from rest_framework.permissions import IsAuthenticated
+from rest_framework.exceptions import PermissionDenied
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from .models import Product, ProductFile
 from rest_framework import status
 from django.conf import settings
 import logging
@@ -67,7 +69,9 @@ class ProductView(APIView):
 
     def post(self, request):
         files_data = [{"file": file} for file in request.FILES.getlist("files")]
-        product_serializer = ProductSerializer(data=request.data)
+        product_serializer = ProductSerializer(
+            data=request.data, context={"request": request}
+        )
         product_file_serializer = ProductFileSerializer(data=files_data, many=True)
         if product_serializer.is_valid():
             if product_file_serializer.is_valid():
@@ -84,3 +88,29 @@ class ProductView(APIView):
                 return Response(
                     product_file_serializer.errors, status=status.HTTP_400_BAD_REQUEST
                 )
+
+    def delete(self, request, pk):
+        try:
+            product = Product.objects.get(pk=pk)
+        except Product.DoesNotExist:
+            return Response(
+                {"error": "Product not found"}, status=status.HTTP_404_NOT_FOUND
+            )
+
+        # Check if the user is the owner of the product
+        if product.user != request.user:
+            raise PermissionDenied("You do not have permission to delete this product.")
+
+        # Delete all associated files
+        product_files = ProductFile.objects.filter(product=product)
+        for product_file in product_files:
+            product_file.file.delete()
+            product_file.delete()
+
+        # Delete the product
+        product.delete()
+
+        return Response(
+            {"message": "Product and associated files deleted successfully."},
+            status=status.HTTP_204_NO_CONTENT,
+        )
