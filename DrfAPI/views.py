@@ -1,4 +1,9 @@
-from .serializers import UserSerializer, ProductSerializer, ProductFileSerializer
+from .serializers import (
+    ProductCreateSerializer,
+    ProductReadSerializer,
+    UserSerializer,
+    ProductFileSerializer,
+)
 from django.contrib.auth import login, authenticate, logout
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.exceptions import PermissionDenied
@@ -17,6 +22,8 @@ class UserRegistrationView(APIView):
         serializer = UserSerializer(data=request.data)
         if serializer.is_valid():
             user = serializer.save()
+            print(serializer.data)
+            print(serializer.validated_data)
             login(request, user)
             info_logger.info(f"User '{user.username}' registered successfully.")
             return Response(
@@ -67,9 +74,14 @@ class MyProtectedView(APIView):
 class ProductView(APIView):
     permission_classes = [IsAuthenticated]
 
+    def get(self, request):
+        products = Product.objects.all()
+        serializer = ProductReadSerializer(products, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
     def post(self, request):
         files_data = [{"file": file} for file in request.FILES.getlist("files")]
-        product_serializer = ProductSerializer(
+        product_serializer = ProductCreateSerializer(
             data=request.data, context={"request": request}
         )
         product_file_serializer = ProductFileSerializer(data=files_data, many=True)
@@ -83,11 +95,27 @@ class ProductView(APIView):
                 ]
                 response_data = product_serializer.data
                 response_data["file_details"] = file_urls
-                return Response(response_data, status=status.HTTP_200_OK)
+                return Response(response_data, status=status.HTTP_201_CREATED)
             else:
                 return Response(
                     product_file_serializer.errors, status=status.HTTP_400_BAD_REQUEST
                 )
+
+
+class SpecificProductView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, pk):
+        try:
+            product = Product.objects.get(pk=pk)
+        except Product.DoesNotExist:
+            return Response(
+                {"error": "Product not found"}, status=status.HTTP_404_NOT_FOUND
+            )
+        if product.user != request.user:
+            raise PermissionDenied("You do not have permission to delete this product.")
+        serializer = ProductReadSerializer(product)
+        return Response(serializer.data, status=status.HTTP_200_OK)
 
     def delete(self, request, pk):
         try:
@@ -96,20 +124,13 @@ class ProductView(APIView):
             return Response(
                 {"error": "Product not found"}, status=status.HTTP_404_NOT_FOUND
             )
-
-        # Check if the user is the owner of the product
         if product.user != request.user:
             raise PermissionDenied("You do not have permission to delete this product.")
-
-        # Delete all associated files
         product_files = ProductFile.objects.filter(product=product)
         for product_file in product_files:
             product_file.file.delete()
             product_file.delete()
-
-        # Delete the product
         product.delete()
-
         return Response(
             {"message": "Product and associated files deleted successfully."},
             status=status.HTTP_204_NO_CONTENT,

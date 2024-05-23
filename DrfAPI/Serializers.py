@@ -59,7 +59,18 @@ class ProductFileSerializer(serializers.ModelSerializer):
         return None
 
 
-class ProductSerializer(serializers.ModelSerializer):
+class ProductReadSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Product
+        fields = [
+            "id",
+            "title",
+            "description",
+            "price",
+        ]
+
+
+class ProductCreateSerializer(serializers.ModelSerializer):
 
     files = serializers.ListField(
         child=serializers.FileField(), write_only=True, allow_empty=False
