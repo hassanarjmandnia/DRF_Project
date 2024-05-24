@@ -8,6 +8,7 @@ from DrfAPI.views import (
     UserLogoutView,
     UserLoginView,
     ProductView,
+    SaleView,
 )
 
 urlpatterns = [
@@ -22,9 +23,7 @@ urlpatterns = [
         name="product-delete",
     ),
     path("products/show/", ProductView.as_view(), name="products-detail"),
-    path(
-        "products/show/<int:pk>/", SpecificProductView.as_view(), name="product-detail"
-    ),
+    path("products/buy/<int:pk>/", SaleView.as_view(), name="product-sale"),
 ]
 if settings.DEBUG:
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

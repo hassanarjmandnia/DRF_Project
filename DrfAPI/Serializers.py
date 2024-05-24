@@ -1,4 +1,4 @@
-from .models import CustomUser, Product, ProductFile
+from .models import CustomUser, Product, ProductFile, Sale
 from django.core.validators import RegexValidator
 from rest_framework import serializers
 from .utils import get_default_role
@@ -132,10 +132,11 @@ class ProductCreateSerializer(serializers.ModelSerializer):
 class ProductReadSerializer(serializers.ModelSerializer):
     class Meta:
         model = Product
-        fields = [
-            "id",
-            "title",
-            "description",
-            "price",
-            "user_id"
-        ]
+        fields = ["id", "title", "description", "price", "user_id"]
+
+
+class ProductSaleSerializer(serializers.ModelSerializer):
+
+    class Meta:
+        model = Sale
+        fields = ["id", "buyer", "product", "created_at"]

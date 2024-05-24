@@ -10,6 +10,7 @@ from .serializers import (
     ProductCreateSerializer,
     ProductReadSerializer,
     ProductFileSerializer,
+    ProductSaleSerializer,
     UserSerializer,
 )
 import logging
@@ -153,3 +154,22 @@ class SpecificProductView(APIView):
             )
         else:
             raise PermissionDenied("You do not have permission to delete this product.")
+
+
+class SaleView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, pk):
+        try:
+            product = Product.objects.get(pk=pk)
+        except Product.DoesNotExist:
+            return Response(
+                {"error": "Product not found"}, status=status.HTTP_404_NOT_FOUND
+            )
+        sale_data = {"buyer": request.user.id, "product": product.id}
+        serializer = ProductSaleSerializer(data=sale_data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        else:
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)

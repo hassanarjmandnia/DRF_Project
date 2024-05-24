@@ -56,3 +56,13 @@ class ProductFile(models.Model):
 
     def __str__(self):
         return f"File {self.id} for Product: {self.product.title}"
+
+
+class Sale(models.Model):
+    buyer = models.ForeignKey(
+        CustomUser, on_delete=models.CASCADE, null=False, blank=False
+    )
+    product = models.ForeignKey(
+        Product, on_delete=models.CASCADE, null=False, blank=False
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
