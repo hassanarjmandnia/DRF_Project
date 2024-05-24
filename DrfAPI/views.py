@@ -1,20 +1,41 @@
-from .serializers import (
-    ProductCreateSerializer,
-    ProductReadSerializer,
-    UserSerializer,
-    ProductFileSerializer,
-)
+from rest_framework.permissions import BasePermission, IsAuthenticated, SAFE_METHODS
 from django.contrib.auth import login, authenticate, logout
-from rest_framework.permissions import IsAuthenticated
 from rest_framework.exceptions import PermissionDenied
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from .models import Product, ProductFile
 from rest_framework import status
 from django.conf import settings
+from .serializers import (
+    ProductCreateSerializer,
+    ProductReadSerializer,
+    ProductFileSerializer,
+    UserSerializer,
+)
 import logging
 
 info_logger = logging.getLogger("info_logger")
+
+
+class IsAuthenticatedOrReadOnly(BasePermission):
+    def has_permission(self, request, view):
+        if request.method in SAFE_METHODS:  # SAFE_METHODS = ['GET', 'OPTIONS', 'HEAD']
+            return True
+        return request.user and request.user.is_authenticated
+
+
+class IsSuperAdmin(BasePermission):
+    """
+    Custom permission to only allow superadmin users to access the view.
+    """
+
+    def has_permission(self, request, view):
+        # Check if the user is authenticated and is a superadmin
+        return (
+            request.user
+            and request.user.is_authenticated
+            and request.user.role.name == "superadmin"
+        )
 
 
 class UserRegistrationView(APIView):
@@ -22,8 +43,6 @@ class UserRegistrationView(APIView):
         serializer = UserSerializer(data=request.data)
         if serializer.is_valid():
             user = serializer.save()
-            print(serializer.data)
-            print(serializer.validated_data)
             login(request, user)
             info_logger.info(f"User '{user.username}' registered successfully.")
             return Response(
@@ -37,9 +56,7 @@ class UserLoginView(APIView):
     def post(self, request):
         username = request.data.get("username")
         password = request.data.get("password")
-
         user = authenticate(request, username=username, password=password)
-
         if user is not None:
             login(request, user)
             info_logger.info(f"User '{user.username}' logged_in successfully.")
@@ -72,7 +89,7 @@ class MyProtectedView(APIView):
 
 
 class ProductView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticatedOrReadOnly]
 
     def get(self, request):
         products = Product.objects.all()
@@ -89,6 +106,9 @@ class ProductView(APIView):
             if product_file_serializer.is_valid():
                 product = product_serializer.save(user=request.user)
                 product_file_serializer.save(product=product)
+                info_logger.info(
+                    f"Product '{product.id}' with {len(files_data)} created successfully."
+                )
                 file_urls = [
                     file_data["file_url"]
                     for file_data in product_serializer.data["file_details"]
@@ -100,22 +120,14 @@ class ProductView(APIView):
                 return Response(
                     product_file_serializer.errors, status=status.HTTP_400_BAD_REQUEST
                 )
+        else:
+            return Response(
+                product_serializer.errors, status=status.HTTP_400_BAD_REQUEST
+            )
 
 
 class SpecificProductView(APIView):
     permission_classes = [IsAuthenticated]
-
-    def get(self, request, pk):
-        try:
-            product = Product.objects.get(pk=pk)
-        except Product.DoesNotExist:
-            return Response(
-                {"error": "Product not found"}, status=status.HTTP_404_NOT_FOUND
-            )
-        if product.user != request.user:
-            raise PermissionDenied("You do not have permission to delete this product.")
-        serializer = ProductReadSerializer(product)
-        return Response(serializer.data, status=status.HTTP_200_OK)
 
     def delete(self, request, pk):
         try:
@@ -124,14 +136,20 @@ class SpecificProductView(APIView):
             return Response(
                 {"error": "Product not found"}, status=status.HTTP_404_NOT_FOUND
             )
-        if product.user != request.user:
+        if product.user == request.user or (
+            request.user and request.user.role.name == "superadmin"
+        ):
+            product_files = ProductFile.objects.filter(product=product)
+            for product_file in product_files:
+                product_file.file.delete()
+                product_file.delete()
+            info_logger.info(
+                f"Product '{product.id}' and associated files deleted successfully."
+            )
+            product.delete()
+            return Response(
+                {"message": "Product and associated files deleted successfully."},
+                status=status.HTTP_204_NO_CONTENT,
+            )
+        else:
             raise PermissionDenied("You do not have permission to delete this product.")
-        product_files = ProductFile.objects.filter(product=product)
-        for product_file in product_files:
-            product_file.file.delete()
-            product_file.delete()
-        product.delete()
-        return Response(
-            {"message": "Product and associated files deleted successfully."},
-            status=status.HTTP_204_NO_CONTENT,
-        )

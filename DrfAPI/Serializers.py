@@ -59,17 +59,6 @@ class ProductFileSerializer(serializers.ModelSerializer):
         return None
 
 
-class ProductReadSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Product
-        fields = [
-            "id",
-            "title",
-            "description",
-            "price",
-        ]
-
-
 class ProductCreateSerializer(serializers.ModelSerializer):
 
     files = serializers.ListField(
@@ -138,3 +127,15 @@ class ProductCreateSerializer(serializers.ModelSerializer):
         files = validated_data.pop("files", [])
         product = Product.objects.create(**validated_data)
         return product
+
+
+class ProductReadSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Product
+        fields = [
+            "id",
+            "title",
+            "description",
+            "price",
+            "user_id"
+        ]

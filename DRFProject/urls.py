@@ -1,14 +1,14 @@
+from django.conf.urls.static import static
+from django.conf import settings
+from django.urls import path
 from DrfAPI.views import (
     UserRegistrationView,
+    SpecificProductView,
     MyProtectedView,
     UserLogoutView,
     UserLoginView,
     ProductView,
-    SpecificProductView,
 )
-from django.conf.urls.static import static
-from django.conf import settings
-from django.urls import path
 
 urlpatterns = [
     path("register/", UserRegistrationView.as_view(), name="user-register"),
@@ -22,7 +22,9 @@ urlpatterns = [
         name="product-delete",
     ),
     path("products/show/", ProductView.as_view(), name="products-detail"),
-    path("products/show/<int:pk>/", SpecificProductView.as_view(), name="product-detail"),
+    path(
+        "products/show/<int:pk>/", SpecificProductView.as_view(), name="product-detail"
+    ),
 ]
 if settings.DEBUG:
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
