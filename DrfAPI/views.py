@@ -8,6 +8,7 @@ from rest_framework import status
 from django.conf import settings
 from .serializers import (
     ProductCreateSerializer,
+    ProductDetailSerializer,
     ProductReadSerializer,
     ProductFileSerializer,
     ProductSaleSerializer,
@@ -167,9 +168,19 @@ class SaleView(APIView):
                 {"error": "Product not found"}, status=status.HTTP_404_NOT_FOUND
             )
         sale_data = {"buyer": request.user.id, "product": product.id}
-        serializer = ProductSaleSerializer(data=sale_data)
-        if serializer.is_valid():
-            serializer.save()
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        sale_serializer = ProductSaleSerializer(data=sale_data)
+        if sale_serializer.is_valid():
+            sale_serializer.save()
+            product_serializer = ProductDetailSerializer(
+                product, context={"request": request}
+            )
+            file_urls = [
+                file_data["file_url"]
+                for file_data in product_serializer.data["files"]
+            ]
+            response_data = product_serializer.data
+            response_data["files"] = file_urls
+
+            return Response(response_data, status=status.HTTP_201_CREATED)
         else:
-            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+            return Response(sale_serializer.errors, status=status.HTTP_400_BAD_REQUEST)

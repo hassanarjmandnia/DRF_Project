@@ -1,5 +1,7 @@
 from django.contrib.auth.models import AbstractUser
 from django.db import models
+import uuid
+import os
 
 
 class CustomUser(AbstractUser):
@@ -52,10 +54,32 @@ class ProductFile(models.Model):
         "Product", related_name="files", on_delete=models.CASCADE
     )
     file = models.FileField(upload_to="product_files/")
+    original_name = models.CharField(
+        max_length=255,
+    )
+    file_format = models.CharField(max_length=50)
+    file_size = models.PositiveIntegerField()
     uploaded_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
         return f"File {self.id} for Product: {self.product.title}"
+
+    def save(self, *args, **kwargs):
+        if not self.pk:  # Only rename file on initial save
+            self.original_name = self.file.name
+            self.file_format = os.path.splitext(self.file.name)[1][1:].lower()
+            self.file_size = self.file.size
+
+            created_at_str = (
+                self.uploaded_at.strftime("%Y%m%d%H%M%S") if self.uploaded_at else ""
+            )
+            random_str = uuid.uuid4().hex[:8]
+            user_id = self.product.user_id
+            name_without_extension = os.path.splitext(self.file.name)[0]
+            new_file_name = f"{name_without_extension}_{created_at_str}_{random_str}_{user_id}.{self.file_format}"
+            self.file.name = new_file_name
+
+        super().save(*args, **kwargs)
 
 
 class Sale(models.Model):

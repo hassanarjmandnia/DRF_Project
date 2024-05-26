@@ -47,10 +47,11 @@ class UserSerializer(serializers.ModelSerializer):
 
 class ProductFileSerializer(serializers.ModelSerializer):
     file_url = serializers.SerializerMethodField()
+    original_name = serializers.CharField(source="file.name", read_only=True)
 
     class Meta:
         model = ProductFile
-        fields = ["id", "file", "file_url"]
+        fields = ["id", "file", "file_url", "original_name", "file_format", "file_size"]
 
     def get_file_url(self, obj):
         request = self.context.get("request")
@@ -130,9 +131,31 @@ class ProductCreateSerializer(serializers.ModelSerializer):
 
 
 class ProductReadSerializer(serializers.ModelSerializer):
+
     class Meta:
         model = Product
-        fields = ["id", "title", "description", "price", "user_id"]
+        fields = [
+            "id",
+            "title",
+            "description",
+            "price",
+            "user_id",
+        ]
+
+
+class ProductDetailSerializer(serializers.ModelSerializer):
+    files = ProductFileSerializer(many=True)
+
+    class Meta:
+        model = Product
+        fields = [
+            "id",
+            "title",
+            "description",
+            "price",
+            "files",
+            "user_id",
+        ]
 
 
 class ProductSaleSerializer(serializers.ModelSerializer):
