@@ -48,6 +48,8 @@ class UserSerializer(serializers.ModelSerializer):
 class ProductFileSerializer(serializers.ModelSerializer):
     file_url = serializers.SerializerMethodField()
     original_name = serializers.CharField(source="file.name", read_only=True)
+    file_format = serializers.CharField(read_only=True)
+    file_size = serializers.IntegerField(read_only=True)
 
     class Meta:
         model = ProductFile
@@ -77,6 +79,7 @@ class ProductCreateSerializer(serializers.ModelSerializer):
             "files",
             "file_details",
             "user_id",
+            "quantity",
         ]
 
     def validate_title(self, value):
@@ -134,13 +137,7 @@ class ProductReadSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Product
-        fields = [
-            "id",
-            "title",
-            "description",
-            "price",
-            "user_id",
-        ]
+        fields = ["id", "title", "description", "price", "user_id", "quantity"]
 
 
 class ProductDetailSerializer(serializers.ModelSerializer):
@@ -148,14 +145,87 @@ class ProductDetailSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Product
-        fields = [
-            "id",
-            "title",
-            "description",
-            "price",
-            "files",
-            "user_id",
-        ]
+        fields = ["id", "title", "description", "price", "files", "user_id", "quantity"]
+
+
+class ProductUpdateSerializer(serializers.ModelSerializer):
+    files = serializers.ListField(
+        child=serializers.FileField(), write_only=True, required=False
+    )
+
+    class Meta:
+        model = Product
+        fields = ["title", "description", "price", "quantity", "files"]
+        extra_kwargs = {field: {"required": False} for field in fields}
+
+    def validate_title(self, value):
+        if not value.strip():
+            raise serializers.ValidationError("Title cannot be blank.")
+        if not re.match(r"^[a-zA-Z0-9\s]+$", value):
+            raise serializers.ValidationError("Title must be alphanumeric.")
+        if len(value) < 10:
+            raise serializers.ValidationError(
+                "Title must be at least 10 characters long."
+            )
+        return value
+
+    def validate_description(self, value):
+        if not value.strip():
+            raise serializers.ValidationError("Description cannot be blank.")
+        if len(value) < 10:
+            raise serializers.ValidationError(
+                "Description must be at least 10 characters long."
+            )
+        return value
+
+    def validate_price(self, value):
+        if value is None or value <= 0:
+            raise serializers.ValidationError("Price must be greater than zero.")
+        return value
+
+    def validate_files(self, files):
+        if not (1 <= len(files) <= 5):
+            raise serializers.ValidationError(
+                "Number of files must be between 1 and 5."
+            )
+        total_size = 0
+        for file in files:
+            if not any(
+                file.name.endswith(ext) for ext in settings.ALLOWED_FILE_UPLOAD_FORMATS
+            ):
+                raise serializers.ValidationError(
+                    f"Invalid file type. Allowed types are: {', '.join(settings.ALLOWED_FILE_UPLOAD_FORMATS)}"
+                )
+            total_size += file.size
+        if total_size > settings.MAX_FILE_UPLOAD_SIZE:
+            raise serializers.ValidationError(
+                f"Total file size must be under {settings.MAX_FILE_UPLOAD_SIZE / (1024 * 1024)} MB"
+            )
+        return files
+
+    def validate(self, data):
+        if not data:
+            raise serializers.ValidationError("At least one field must be updated.")
+        return data
+
+    def update(self, instance, validated_data):
+        files = validated_data.pop("files", None)
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+        instance.save()
+        if files:
+            product_files = ProductFile.objects.filter(product=instance)
+            for product_file in product_files:
+                product_file.file.delete()
+                product_file.delete()
+            files_data = [{"file": file} for file in files]
+            product_file_serializer = ProductFileSerializer(data=files_data, many=True)
+            if product_file_serializer.is_valid():
+                product_file_serializer.save(product=instance)
+            else:
+                raise serializers.ValidationError(product_file_serializer.errors)
+
+        return instance
 
 
 class ProductSaleSerializer(serializers.ModelSerializer):

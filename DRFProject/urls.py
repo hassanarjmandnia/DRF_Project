@@ -13,17 +13,22 @@ from DrfAPI.views import (
 
 urlpatterns = [
     path("register/", UserRegistrationView.as_view(), name="user-register"),
-    path("login/", UserLoginView.as_view(), name="user-login"),
     path("logout/", UserLogoutView.as_view(), name="user-logout"),
+    path("login/", UserLoginView.as_view(), name="user-login"),
     path("reg/", MyProtectedView.as_view(), name="user-reg"),
+    path("products/buy/<int:pk>/", SaleView.as_view(), name="product-sale"),
     path("products/create/", ProductView.as_view(), name="product-create"),
+    path("products/show/", ProductView.as_view(), name="products-detail"),
+    path(
+        "products/update/<int:pk>/",
+        SpecificProductView.as_view(),
+        name="product-update",
+    ),
     path(
         "products/delete/<int:pk>/",
         SpecificProductView.as_view(),
         name="product-delete",
     ),
-    path("products/show/", ProductView.as_view(), name="products-detail"),
-    path("products/buy/<int:pk>/", SaleView.as_view(), name="product-sale"),
 ]
 if settings.DEBUG:
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

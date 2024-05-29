@@ -9,7 +9,7 @@ from django.conf import settings
 from .serializers import (
     ProductCreateSerializer,
     ProductDetailSerializer,
-    ProductReadSerializer,
+    ProductUpdateSerializer,
     ProductFileSerializer,
     ProductSaleSerializer,
     UserSerializer,
@@ -17,6 +17,7 @@ from .serializers import (
 import logging
 
 info_logger = logging.getLogger("info_logger")
+error_logger = logging.getLogger("error_logger")
 
 
 class IsAuthenticatedOrReadOnly(BasePermission):
@@ -95,7 +96,9 @@ class ProductView(APIView):
 
     def get(self, request):
         products = Product.objects.all()
-        serializer = ProductReadSerializer(products, many=True)
+        serializer = ProductDetailSerializer(
+            products, context={"request": request}, many=True
+        )
         return Response(serializer.data, status=status.HTTP_200_OK)
 
     def post(self, request):
@@ -111,6 +114,7 @@ class ProductView(APIView):
                 info_logger.info(
                     f"Product '{product.id}' with {len(files_data)} created successfully."
                 )
+                print(product_serializer.data)
                 file_urls = [
                     file_data["file_url"]
                     for file_data in product_serializer.data["file_details"]
@@ -130,6 +134,41 @@ class ProductView(APIView):
 
 class SpecificProductView(APIView):
     permission_classes = [IsAuthenticated]
+
+    def put(self, request, pk):
+        try:
+            product = Product.objects.get(pk=pk)
+        except Product.DoesNotExist:
+            return Response(
+                {"error": "Product not found"}, status=status.HTTP_404_NOT_FOUND
+            )
+        if product.user == request.user or (
+            request.user and request.user.role.name == "superadmin"
+        ):
+            if not request.data:
+                return Response(
+                    {"error": "No fields provided for update"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            serializer = ProductUpdateSerializer(
+                product, data=request.data, partial=True
+            )
+
+            if serializer.is_valid():
+                serializer.save()
+                info_logger.info(f"Product '{product.id}' updated successfully.")
+                return Response(
+                    {"message": "Product and associated files updated successfully."},
+                    status=status.HTTP_204_NO_CONTENT,
+                )
+            else:
+                error_logger.error(
+                    f"Update failed for Product '{product.id}': {serializer.errors}"
+                )
+                return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        else:
+            raise PermissionDenied("You do not have permission to update this product.")
 
     def delete(self, request, pk):
         try:
@@ -175,8 +214,7 @@ class SaleView(APIView):
                 product, context={"request": request}
             )
             file_urls = [
-                file_data["file_url"]
-                for file_data in product_serializer.data["files"]
+                file_data["file_url"] for file_data in product_serializer.data["files"]
             ]
             response_data = product_serializer.data
             response_data["files"] = file_urls

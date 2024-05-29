@@ -42,6 +42,7 @@ class Product(models.Model):
     price = models.DecimalField(
         max_digits=10, decimal_places=2, null=False, blank=False
     )
+    quantity = models.IntegerField(null=False, blank=False)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -65,7 +66,7 @@ class ProductFile(models.Model):
         return f"File {self.id} for Product: {self.product.title}"
 
     def save(self, *args, **kwargs):
-        if not self.pk:  # Only rename file on initial save
+        if not self.pk:
             self.original_name = self.file.name
             self.file_format = os.path.splitext(self.file.name)[1][1:].lower()
             self.file_size = self.file.size
