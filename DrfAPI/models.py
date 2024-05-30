@@ -96,3 +96,7 @@ class Sale(models.Model):
         max_digits=10, decimal_places=2, null=False, blank=False
     )
     created_at = models.DateTimeField(auto_now_add=True)
+
+    def save(self, *args, **kwargs):
+        self.total_price = self.price * self.quantity
+        super(Sale, self).save(*args, **kwargs)

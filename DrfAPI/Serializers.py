@@ -232,4 +232,18 @@ class ProductSaleSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Sale
-        fields = ["id", "buyer", "product", "created_at"]
+        fields = [
+            "id",
+            "buyer",
+            "product",
+            "price",
+            "quantity",
+            "total_price",
+            "created_at",
+        ]
+        extra_kwargs = {"total_price": {"read_only": True}}
+
+    def validate_quantity(self, value):
+        if value is None or value <= 0:
+            raise serializers.ValidationError("quantity must be greater than zero.")
+        return value

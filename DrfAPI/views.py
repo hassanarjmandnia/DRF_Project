@@ -1,9 +1,9 @@
 from rest_framework.permissions import BasePermission, IsAuthenticated, SAFE_METHODS
 from django.contrib.auth import login, authenticate, logout
 from rest_framework.exceptions import PermissionDenied
+from .models import Product, ProductFile, Sale
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from .models import Product, ProductFile
 from rest_framework import status
 from django.conf import settings
 from .serializers import (
@@ -206,19 +206,45 @@ class SaleView(APIView):
             return Response(
                 {"error": "Product not found"}, status=status.HTTP_404_NOT_FOUND
             )
-        sale_data = {"buyer": request.user.id, "product": product.id}
-        sale_serializer = ProductSaleSerializer(data=sale_data)
-        if sale_serializer.is_valid():
-            sale_serializer.save()
-            product_serializer = ProductDetailSerializer(
-                product, context={"request": request}
-            )
-            file_urls = [
-                file_data["file_url"] for file_data in product_serializer.data["files"]
-            ]
-            response_data = product_serializer.data
-            response_data["files"] = file_urls
+        quantity = int(request.data["quantity"])
+        if quantity <= product.quantity:
+            sale_data = {
+                "buyer": request.user.id,
+                "product": product.id,
+                "price": product.price,
+                "quantity": quantity,
+            }
+            sale_serializer = ProductSaleSerializer(data=sale_data)
+            if sale_serializer.is_valid():
+                sale_serializer.save()
+                product.quantity -= quantity
+                product.save()
+                product_serializer = ProductDetailSerializer(
+                    product, context={"request": request}
+                )
+                file_urls = [
+                    file_data["file_url"]
+                    for file_data in product_serializer.data["files"]
+                ]
+                response_data = product_serializer.data
+                response_data["files"] = file_urls
 
-            return Response(response_data, status=status.HTTP_201_CREATED)
+                return Response(sale_serializer.data, status=status.HTTP_201_CREATED)
+            else:
+                return Response(
+                    sale_serializer.errors, status=status.HTTP_400_BAD_REQUEST
+                )
         else:
-            return Response(sale_serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                "we don't have that much from this product right now, sorry",
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+
+class PurchaseHistoryView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        sales = Sale.objects.filter(buyer=request.user.id)
+        serializer = ProductSaleSerializer(sales, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)

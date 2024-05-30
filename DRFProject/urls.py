@@ -4,6 +4,7 @@ from django.urls import path
 from DrfAPI.views import (
     UserRegistrationView,
     SpecificProductView,
+    PurchaseHistoryView,
     MyProtectedView,
     UserLogoutView,
     UserLoginView,
@@ -19,6 +20,7 @@ urlpatterns = [
     path("products/buy/<int:pk>/", SaleView.as_view(), name="product-sale"),
     path("products/create/", ProductView.as_view(), name="product-create"),
     path("products/show/", ProductView.as_view(), name="products-detail"),
+    path("PurchaseHistory/", PurchaseHistoryView.as_view(), name="PurchaseHistory"),
     path(
         "products/update/<int:pk>/",
         SpecificProductView.as_view(),
