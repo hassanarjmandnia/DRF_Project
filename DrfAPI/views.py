@@ -227,18 +227,20 @@ class PurchaseView(APIView):
                 )
             else:
                 product_data = {
+                    "Product": product,
                     "product": product.id,
                     "quantity": quantity,
                     "price": product.price,
                 }
                 products_to_purchase.append(product_data)
-        print(products_to_purchase)
-        sale_data = {"buyer": buyer_id, "products": products_to_purchase}
+        sale_data = {"buyer": buyer_id, "Products": products_to_purchase}
         sale_serializer = ProductSaleSerializer(data=sale_data)
         sale_product_serializer = SaleProductSerializer(
             data=products_to_purchase,
             many=True,
         )
+        print("HHH")
+        print(products_to_purchase)
         if sale_serializer.is_valid():
             print("sale_serlzer is valid")
             if sale_product_serializer.is_valid():
@@ -246,10 +248,10 @@ class PurchaseView(APIView):
                 sale = sale_serializer.save()
                 print("successful attempt for saving the sale")
                 sale_product_serializer.save(sale=sale)
+                # sale_data = sale_serializer.data
+                # sale_data["products"] = SaleProductSerializer(sale.saleproduct_set.all(), many=True).data
                 print("successful attempt for saving the products of sale")
-                return Response(
-                    sale_serializer.data, status=status.HTTP_201_CREATED
-                )
+                return Response(sale_serializer.data, status=status.HTTP_201_CREATED)
             else:
                 return Response(
                     sale_product_serializer.errors,

@@ -88,7 +88,6 @@ class Sale(models.Model):
     buyer = models.ForeignKey(
         CustomUser, on_delete=models.CASCADE, null=False, blank=False
     )
-    products = models.ManyToManyField(Product, through="SaleProduct")
     total_price = models.DecimalField(
         max_digits=10, decimal_places=2, null=False, blank=False, default=50
     )
