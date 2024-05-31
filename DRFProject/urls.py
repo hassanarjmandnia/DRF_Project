@@ -8,8 +8,8 @@ from DrfAPI.views import (
     MyProtectedView,
     UserLogoutView,
     UserLoginView,
+    PurchaseView,
     ProductView,
-    SaleView,
 )
 
 urlpatterns = [
@@ -17,7 +17,7 @@ urlpatterns = [
     path("logout/", UserLogoutView.as_view(), name="user-logout"),
     path("login/", UserLoginView.as_view(), name="user-login"),
     path("reg/", MyProtectedView.as_view(), name="user-reg"),
-    path("products/buy/<int:pk>/", SaleView.as_view(), name="product-sale"),
+    path("products/buy/", PurchaseView.as_view(), name="product-sale"),
     path("products/create/", ProductView.as_view(), name="product-create"),
     path("products/show/", ProductView.as_view(), name="products-detail"),
     path("PurchaseHistory/", PurchaseHistoryView.as_view(), name="PurchaseHistory"),

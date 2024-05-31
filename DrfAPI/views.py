@@ -12,6 +12,7 @@ from .serializers import (
     ProductUpdateSerializer,
     ProductFileSerializer,
     ProductSaleSerializer,
+    SaleProductSerializer,
     UserSerializer,
 )
 import logging
@@ -114,7 +115,6 @@ class ProductView(APIView):
                 info_logger.info(
                     f"Product '{product.id}' with {len(files_data)} created successfully."
                 )
-                print(product_serializer.data)
                 file_urls = [
                     file_data["file_url"]
                     for file_data in product_serializer.data["file_details"]
@@ -196,47 +196,68 @@ class SpecificProductView(APIView):
             raise PermissionDenied("You do not have permission to delete this product.")
 
 
-class SaleView(APIView):
+class PurchaseView(APIView):
     permission_classes = [IsAuthenticated]
 
-    def post(self, request, pk):
-        try:
-            product = Product.objects.get(pk=pk)
-        except Product.DoesNotExist:
-            return Response(
-                {"error": "Product not found"}, status=status.HTTP_404_NOT_FOUND
-            )
-        quantity = int(request.data["quantity"])
-        if quantity <= product.quantity:
-            sale_data = {
-                "buyer": request.user.id,
-                "product": product.id,
-                "price": product.price,
-                "quantity": quantity,
-            }
-            sale_serializer = ProductSaleSerializer(data=sale_data)
-            if sale_serializer.is_valid():
-                sale_serializer.save()
-                product.quantity -= quantity
-                product.save()
-                product_serializer = ProductDetailSerializer(
-                    product, context={"request": request}
+    def post(self, request):
+        buyer_id = request.user.id
+        products_data = request.data.get("products", [])
+        products_to_purchase = []
+        for item in products_data:
+            product_id = item.get("product")
+            quantity = item.get("quantity") if item.get("quantity") is not None else 1
+            if not product_id:
+                return Response(
+                    {"error": "Product ID is required"},
+                    status=status.HTTP_400_BAD_REQUEST,
                 )
-                file_urls = [
-                    file_data["file_url"]
-                    for file_data in product_serializer.data["files"]
-                ]
-                response_data = product_serializer.data
-                response_data["files"] = file_urls
-
-                return Response(sale_serializer.data, status=status.HTTP_201_CREATED)
+            try:
+                product = Product.objects.get(pk=product_id)
+            except Product.DoesNotExist:
+                return Response(
+                    {"error": f"Product with id {product_id} not found"},
+                    status=status.HTTP_404_NOT_FOUND,
+                )
+            if quantity > product.quantity:
+                return Response(
+                    {
+                        "error": f"we don't have this much from product with id {product_id} right now, sorry"
+                    },
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            else:
+                product_data = {
+                    "product": product.id,
+                    "quantity": quantity,
+                    "price": product.price,
+                }
+                products_to_purchase.append(product_data)
+        print(products_to_purchase)
+        sale_data = {"buyer": buyer_id, "products": products_to_purchase}
+        sale_serializer = ProductSaleSerializer(data=sale_data)
+        sale_product_serializer = SaleProductSerializer(
+            data=products_to_purchase,
+            many=True,
+        )
+        if sale_serializer.is_valid():
+            print("sale_serlzer is valid")
+            if sale_product_serializer.is_valid():
+                print("sale_product_serlzer is valid")
+                sale = sale_serializer.save()
+                print("successful attempt for saving the sale")
+                sale_product_serializer.save(sale=sale)
+                print("successful attempt for saving the products of sale")
+                return Response(
+                    sale_serializer.data, status=status.HTTP_201_CREATED
+                )
             else:
                 return Response(
-                    sale_serializer.errors, status=status.HTTP_400_BAD_REQUEST
+                    sale_product_serializer.errors,
+                    status=status.HTTP_400_BAD_REQUEST,
                 )
         else:
             return Response(
-                "we don't have that much from this product right now, sorry",
+                sale_serializer.errors,
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
@@ -246,5 +267,7 @@ class PurchaseHistoryView(APIView):
 
     def get(self, request):
         sales = Sale.objects.filter(buyer=request.user.id)
-        serializer = ProductSaleSerializer(sales, many=True)
-        return Response(serializer.data, status=status.HTTP_200_OK)
+        serializer = ProductSaleSerializer(data=sales, many=True)
+        if serializer.is_valid():
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)

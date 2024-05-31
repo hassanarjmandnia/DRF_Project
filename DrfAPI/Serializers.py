@@ -1,4 +1,4 @@
-from .models import CustomUser, Product, ProductFile, Sale
+from .models import CustomUser, Product, ProductFile, Sale, SaleProduct
 from django.core.validators import RegexValidator
 from rest_framework import serializers
 from .utils import get_default_role
@@ -228,22 +228,26 @@ class ProductUpdateSerializer(serializers.ModelSerializer):
         return instance
 
 
+class SaleProductSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = SaleProduct
+        fields = ["product", "quantity", "price"]
+
+
 class ProductSaleSerializer(serializers.ModelSerializer):
+    products = serializers.SerializerMethodField()
 
     class Meta:
         model = Sale
-        fields = [
-            "id",
-            "buyer",
-            "product",
-            "price",
-            "quantity",
-            "total_price",
-            "created_at",
-        ]
+        fields = ["id", "buyer", "products", "total_price", "created_at"]
         extra_kwargs = {"total_price": {"read_only": True}}
 
-    def validate_quantity(self, value):
-        if value is None or value <= 0:
-            raise serializers.ValidationError("quantity must be greater than zero.")
-        return value
+    def get_products(self, obj):
+        sale_products = SaleProduct.objects.filter(sale=obj)
+        product_ids = [sale_product.product_id for sale_product in sale_products]
+        return product_ids
+
+    def create(self, validated_data):
+        #products_data = validated_data.pop('products')
+        sale = Sale.objects.create(**validated_data)
+        return sale

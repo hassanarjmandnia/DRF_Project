@@ -84,19 +84,29 @@ class ProductFile(models.Model):
 
 
 class Sale(models.Model):
+
     buyer = models.ForeignKey(
         CustomUser, on_delete=models.CASCADE, null=False, blank=False
     )
-    product = models.ForeignKey(
-        Product, on_delete=models.CASCADE, null=False, blank=False
-    )
-    price = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
-    quantity = models.IntegerField(null=False, blank=False)
+    products = models.ManyToManyField(Product, through="SaleProduct")
     total_price = models.DecimalField(
-        max_digits=10, decimal_places=2, null=False, blank=False
+        max_digits=10, decimal_places=2, null=False, blank=False, default=50
     )
     created_at = models.DateTimeField(auto_now_add=True)
 
-    def save(self, *args, **kwargs):
-        self.total_price = self.price * self.quantity
-        super(Sale, self).save(*args, **kwargs)
+    # def save(self, *args, **kwargs):
+    #    total_price = sum(
+    #        product.price * product.saleproduct.quantity
+    #        for product in self.products.all()
+    #    )
+    #    self.total_price = total_price
+    #    super(Sale, self).save(*args, **kwargs)
+
+
+class SaleProduct(models.Model):
+    sale = models.ForeignKey(Sale, on_delete=models.CASCADE)
+    product = models.ForeignKey(Product, on_delete=models.CASCADE)
+    quantity = models.IntegerField(default=1)
+    price = models.DecimalField(
+        max_digits=10, decimal_places=2, null=False, blank=False
+    )
